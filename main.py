@@ -2,16 +2,16 @@ from simulation import VortexSimulation
 
 
 def main():
-    Re = 100
+    Re = 10
 
-    m = 100
-    n = 100
+    n = 64
+    m = 32
 
-    r_psi = 0.5
-    r_omega = 0.5
+    # r_psi = 1.924 # for n = 128, m = 64
+    r_psi = 1.852  # for n = 64, m = 32
 
-    s = VortexSimulation(Re, m, n)
-    s.run_simulation(simulation_time=10, dt=0.001, r_psi=r_psi, r_omega=r_omega)
+    simulation = VortexSimulation(Re, n, m, dt=0.02)
+    simulation.run_simulation(simulation_time=3, r_psi=r_psi, steps_per_frame=10, to_plot=False)
 
 
 if __name__ == "__main__":

@@ -1,37 +1,58 @@
 import numpy as np
 
+import matplotlib.pyplot as plt
+
+from scipy.sparse import eye, kron, diags
+from scipy.sparse.linalg import cg, spsolve
+
 
 class PoissonSolver:
-    def __init__(self, Re: float, h: float, exp_neg_2_xi: np.ndarray, exp_neg_xi: np.ndarray) -> None:
-        self.Re = Re
-
+    def __init__(self, h: float, exp_neg_2_xi: np.ndarray) -> None:
         self.h = h
+        self.exp_pos_2_xi = 1 / exp_neg_2_xi
 
-        self.f1 = exp_neg_xi
-        self.f2 = exp_neg_2_xi
+    def sor(self, psi: np.ndarray, omega: np.ndarray, toleranz: float, max_iterations: int, r_psi: float) -> None:
+        # errors = []
 
-    def sor(self, psi: np.ndarray, omega: np.ndarray, toleranz: float, max_iterations: int, r_psi: float, r_omega: float) -> int:
-        n, m = psi.shape
         if psi.shape != omega.shape:
-            raise ValueError(
-                f'Die Matrizen des Wirbelstroms und der Wirbelstärke müssen die gleiche Shape haben.')
-        for iter in max_iterations:
+            raise ValueError(f'Die Matrizen des Wirbelstroms und der Wirbelstärke müssen die gleiche Shape haben. Shape-Psi: {psi.shape},\
+                                Shape-Omega: {omega.shape}')
+
+        nx, ny = psi.shape
+
+        f = self.h**2 * self.exp_pos_2_xi[1:-1, 1:-1] * omega[1:-1, 1:-1]
+
+        grid_y, grid_x = np.ogrid[1:nx-1, 1:ny-1]
+        w_mask = ((grid_y + grid_x) % 2 == 0)
+        b_mask = ~w_mask
+
+        inner_psi = psi[1:-1, 1:-1]
+
+        for iter in range(max_iterations):
             psi_iter = psi.copy()
-            omega_iter = omega.copy()
-            for i in range(1, n - 1):
-                for j in range(1, m - 1):
-                    term_psi = r_psi/4 * (psi[i + 1, j] + psi[i - 1, j] + psi[i, j + 1] +
-                                          psi[i, j - 1] + self.h**2 * self.f2 * omega[i, j])
-                    psi[i, j] = (1 - r_psi) * psi[i, j] + term_psi
 
-                    f = (psi[i + 1, j] - psi[j - 1, j]) * (omega[i, j + 1] - omega[i, j - 1]) + \
-                        (psi[i, j + 1] - psi[i, j - 1]) * (omega[i + 1, j] - omega[j - 1, j])
-                    term_omega = r_omega / 4 * \
-                        (omega[i + 1, j] + omega[i - 1, j] + omega[i, j + 1] + omega[i, j - 1] + self.Re / 8 * f)
-                    omega[i, j] = (1 - r_omega) * omega[i, j] + term_omega
+            w = psi[2:, 1:-1] + psi[:-2, 1:-1] + psi[1:-1, 2:] + psi[1:-1, :-2]
+            term = 1/4 * (w + f)
+            inner_psi[w_mask] = (1 - r_psi) * inner_psi[w_mask] + r_psi * term[w_mask]
+
+            b = psi[2:, 1:-1] + psi[:-2, 1:-1] + psi[1:-1, 2:] + psi[1:-1, :-2]
+            term = 1/4 * (b + f)
+            inner_psi[b_mask] = (1 - r_psi) * inner_psi[b_mask] + r_psi * term[b_mask]
+
             error_psi = np.max(np.abs(psi - psi_iter))
-            error_omega = np.max(np.abs(omega - omega_iter))
-            if error_psi < toleranz and error_omega < toleranz:
-                return iter
+            # errors.append(error_psi)
+            if error_psi < toleranz:
+                # self.plot_error(errors)
+                return
+        # self.plot_error(errors)
+        return
 
-        return iter
+    def plot_error(self, errors: list[float]) -> None:
+        fig, axis = plt.subplots(1, 1, figsize=(10, 5))
+        x = np.arange(len(errors)) + 1
+        axis.plot(x, errors, color='blue')
+        axis.set_xlabel('Number of Iteration')
+        axis.set_ylabel('Error |psi - old_psi|')
+        axis.set_title('Change of the Error')
+
+        plt.show()
