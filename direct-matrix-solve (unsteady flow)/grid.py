@@ -5,14 +5,14 @@ class LogPolarGrid:
     def __init__(self, n: int, m: int) -> None:
         self.n = n
         self.m = m
-        self.h = np.pi / (m - 1)
+        self.h = 2 * np.pi / self.m
 
     def grid(self) -> np.ndarray:
         xi_max = (self.n - 1) * self.h
         xi = np.linspace(0, xi_max, self.n)
-
-        theta = np.linspace(0, np.pi, self.m)
-
+        print(len(xi))
+        theta = np.arange(self.m) * self.h
+        print(len(theta))
         grid_xi, grid_theta = np.meshgrid(xi, theta, indexing='ij', sparse=False)
 
         self.grid_xi = grid_xi

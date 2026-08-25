@@ -24,19 +24,20 @@ class VortexSimulation:
         self.u_theta = np.zeros((n, m))
         self.u_xi = np.zeros((n, m))
 
+        # self._compute_vortex_boundaries()
+
     def _update_velocities(self) -> None:
         self.u_xi[:, 1:-1] = self.exp_neg_xi[:, 1:-1] * (self.psi[:, 2:] - self.psi[:, :-2]) / (2 * self.h)
         self.u_theta[1:-1, :] = -self.exp_neg_xi[1:-1, :] * (self.psi[2:, :] - self.psi[:-2, :]) / (2 * self.h)
 
     def _compute_vortex_boundaries(self):
-        # self.psi[-1, :] = np.exp(self.grid_xi[-1, :]) * np.sin(self.grid_theta[-1, :])
-
+        self.psi[-1, :] = np.exp(self.grid_xi[-1, :]) * np.sin(self.grid_theta[-1, :])
         self.psi[0, :] = 0.0
 
-        self.u_theta[0, :] = 0.0
-
-        self.omega[0, :] = 1 / (2 * self.h**2) * (self.psi[2, :] - 8 * self.psi[1, :])
         self.omega[-1, :] = 0.0
+        self.omega[0, :] = 1 / (2 * self.h**2) * (self.psi[2, :] - 8 * self.psi[1, :])
+
+        self.u_theta[0, :] = 0.0
 
     def _transport_vortex(self, omega: np.ndarray) -> np.ndarray:
         s = self.psi.shape
@@ -114,8 +115,8 @@ class VortexSimulation:
         ax.set_xlabel("X")
         ax.set_ylabel("Y")
 
-        ax.set_xlim(-5, 5)
-        ax.set_ylim(-1, 5)
+        ax.set_xlim(-10, 10)
+        ax.set_ylim(-1, 10)
 
         self.sim_title = ax.set_title(
             f"Total Simulation Time: {round(simulation_time, 2)}s | t = 0.00s"
