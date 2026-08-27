@@ -7,6 +7,18 @@ import matplotlib.pyplot as plt
 
 class PoissonSolver:
     def __init__(self, h: float, exp_neg_2_xi: np.ndarray, grid_xi: np.ndarray, grid_theta: np.ndarray) -> None:
+        """
+        This class solves the poisson equation ∇²ψ = -ω by solving the matrix equation 'Ax = b'. It uses the class method 'solve' for that.
+
+        By initializing the class all arguments get saved as class varibales and the '_build'-method gets called, which assembles the 
+        matrix A.
+
+        Args:
+            h: grid point width
+            exp_neg_2_xi: factor 'exp(-2 ⋅ ξ_i,j)'
+            grid_xi: meshgrid of ξ
+            grid_theta: meshgrid of θ
+        """
         self.h = h
         self.exp_pos_2_xi = 1 / exp_neg_2_xi
 
@@ -17,7 +29,18 @@ class PoissonSolver:
 
         self.lu = self._build()
 
-    def _build(self):
+    def _build(self) -> np.ndarray:
+        """
+        This method assembles the matrix A of shape m⋅n x m⋅n, used to solve for the stream function, based on the boundary 
+        conditions and the FDE.
+
+        The Finite-Difference-Equation in this case is:
+        
+        4 ⋅ ψ_i,j - ψ_i+1,j - ψ_i-1,j - ψ_i,j+1 - ψ_i,j-1 = h² ⋅ exp(2⋅ξ_i) ⋅ ω_i,j
+
+        Returns:
+            The LU decomposition of the matrix saved as a csc-sparse-array.
+        """
         T_x = sp.diags([-1, 2, -1], [-1, 0, 1], shape=(self.m, self.m), format='csc')
         T_y = sp.diags([-1, 2, -1], [-1, 0, 1], shape=(self.n, self.n), format='csc')
 
@@ -50,7 +73,17 @@ class PoissonSolver:
 
         return spla.splu(A.tocsc())
 
-    def solve(self, omega: np.ndarray, ) -> np.ndarray:
+    def solve(self, omega: np.ndarray) -> np.ndarray:
+        """
+        This method first assembles the the right side of the equation b and applies the periodic boundary conditions on it. After it
+        solves the equation for the stream function.
+
+        Args:
+            omega: vorticity of shape n x m
+
+        Returns:
+            The stream function ψ with shape n x m.
+        """
         b = (self.h**2 * self.exp_pos_2_xi * omega).T.flatten()
 
         b[self.k_L] = 0.0

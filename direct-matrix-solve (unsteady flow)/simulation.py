@@ -9,6 +9,20 @@ import numpy as np
 
 class VortexSimulation:
     def __init__(self, Re: float, n: int, m: int, dt: float) -> None:
+        """
+        This class manages the simulation process of the Kármán vortex street. The class uses the 'run_simulation'-method to start the
+        simulation.
+
+        By initializing the class all args get saved as class variables, the 'LogPolarGrid' class gets initialized and the grid constructed,
+        and the 'PoissonSolver' gets initialized.
+        The initial conditions of stream function, vorticity, and speeds get set.
+
+        Args:
+            Re: Reynolds number
+            n: number of grid points in ξ-direction
+            m: number of grid points in θ-direction
+            dt: step size in seconds
+        """
         self.Re = Re
 
         lp_grid = LogPolarGrid(n, m)
@@ -29,7 +43,62 @@ class VortexSimulation:
 
         self._compute_vortex_boundaries()
 
+    def run_simulation(self, simulation_time: float, steps_per_frame: int, to_plot=False) -> None:
+        """
+        This method is the callable method used to run the simulation. 
+        When to_plot is True it starts the live simulation using matplotlib.animation.animation.FuncAnimation otherwise it calls
+        the '_steps'-method without animation.
+
+        Args:
+            simulation_time: total simulation time in seconds
+            steps_per_frame: number of steps taken per frame update
+            to_plot: decides if the animation is shown or not
+        """
+        n_steps = int(np.ceil(simulation_time // self.dt))
+
+        if to_plot:
+            fig, ax = plt.subplots(figsize=(8, 6))
+            self._init_plot(ax, simulation_time)
+            anim = animation.FuncAnimation(
+                fig,
+                self._plot,
+                fargs=(steps_per_frame, simulation_time),
+                frames=n_steps // steps_per_frame + 1,
+                interval=20,  # Delay between frames in ms (~50 FPS target)
+                blit=False,  # Redraws only modified pixels for speed
+                repeat=False
+            )
+            self._anim = anim
+            plt.show()
+        else:
+            for _ in range(n_steps):
+                self.omega = self._step()
+                # print(f'Max: {np.max(self.psi)}, Min: {np.min(self.psi)}')
+
+    def _step(self) -> np.ndarray:
+        """
+        This method calls the function for each step inside the loop:
+
+        time-step: solve poisson equation -> update velocities -> compute vortex boundaries -> solve vorticity equation
+
+        Returns:
+            The new calculated omega of this time step.
+        """
+        self.psi = self.solver.solve(self.omega)
+        # print(f'PSI: {np.abs(np.max(self.psi))}')
+        self._update_velocities()
+
+        self._compute_vortex_boundaries()
+
+        omega = self._runge_kutta()
+        
+        return omega
+
     def _update_velocities(self) -> None:
+        """
+        This methods updates the vortex velocities u_ξ = exp(-ξ) ⋅ ∂_θ ⋅ ψ and u_θ = exp(-ξ) ⋅ ∂_ξ ⋅ ψ by using a first-order 
+        central derivative. 
+        """
         self.u_xi[:, 1:-1] = self.psi[:, 2:] - self.psi[:, :-2]
         self.u_xi[:, 0] = self.psi[:, 1] - self.psi[:, -1]
         self.u_xi[:, -1] = self.psi[:, 0] - self.psi[:, -2]
@@ -43,8 +112,17 @@ class VortexSimulation:
         # print(f'Max-Xi: {np.max(self.u_xi)}, Min-Xi: {np.min(self.u_xi)}')
         # print(f'Max-Theta: {np.max(self.u_theta)}, Min-Theta: {np.min(self.u_theta)}')
 
-    def _compute_vortex_boundaries(self, omega: np.ndarray | None = None):
+    def _compute_vortex_boundaries(self, omega: np.ndarray | None = None) -> None:
+        """
+        Sets the boundary conditions for the stream function, voricity and vortex speed.
 
+        stream function ψ: ψ_(n - 1),j = exp(ξ_(n - 1)) ⋅ sin(θ_j), ψ_0,j = 0.0
+        vorticity ω: ω_(n - 1),j = 0.0, ω_0,j = 1 / (2 ⋅ h²) ⋅ (ψ_2,j - ψ_1,j)
+        tangential vortex speed u_ξ: u_ξ_0,j = 0.0
+
+        Args:
+            omega: vorticity of shape n x m
+        """
         self.psi[-1, :] = np.exp(self.grid_xi[-1, :]) * np.sin(self.grid_theta[-1, :])
         self.psi[0, :] = 0.0
 
@@ -54,6 +132,18 @@ class VortexSimulation:
         self.u_theta[0, :] = 0.0
 
     def _transport_vortex(self, omega: np.ndarray) -> np.ndarray:
+        """
+        This method solves the vorticity equation for ω_dot by calculating the convection and diffusion term.
+        The diffusion term gets calculated by a second order central derivative on the vorticity in ξ and θ-direction.
+        The first derivative in the convection term gets calculated by a third degree upwind scheme in θ and first degree upwind scheme 
+        in ξ.
+
+        Args:
+            omega: vorticity of shaüe n x m
+        
+        Returns:
+            The time derivative of the vorticity calculated by the vorticity equation.
+        """
         s = self.psi.shape
         d2omega_dtheta2 = np.zeros(s)
         d2omega_dtheta2[:, 1:-1] = omega[:, 2:] - 2 * omega[:, 1:-1] + omega[:, :-2]
@@ -103,19 +193,34 @@ class VortexSimulation:
         # print("exp_neg_xi shape:", self.exp_neg_xi.shape)
 
         diffusion = (1.0 / self.Re) * self.exp_neg_2_xi * (d2omega_dtheta2 + d2omega_dxi2)
-        advection = self.exp_neg_xi * (self.u_xi * domega_dxi + self.u_theta * domega_dtheta)
+        convection = self.exp_neg_xi * (self.u_xi * domega_dxi + self.u_theta * domega_dtheta)
 
         # print(f'DIFFUSION: {np.max(np.abs(diffusion))}')
-        # print(f'ADVEKTION: {np.max(np.abs(advection))}')
+        # print(f'CONVEKTION: {np.max(np.abs(convection))}')
 
         # print(f'diffusion: {diffusion.shape}')
-        # print(f'advection: {advection.shape}')
+        # print(f'convection: {convection.shape}')
 
-        omega_dot = diffusion - advection
+        omega_dot = diffusion - convection
 
         return omega_dot
 
     def _runge_kutta(self) -> np.ndarray:
+        """
+        This method applies a time step on the vorticity by using a Runge-Kutta scheme of 4th order.
+
+        Runge-Kutta scheme of 4th order: y_k+1 = y_k + h / 6 ⋅ (k_1 + 2 ⋅ k_2 + 2 ⋅ k_3 + k_4) with:
+
+        k_1 = f(t_n, y_n); 
+        k_2 = f(t_n + h / 2, y_n + k_1 ⋅ h / 2); 
+        k_3 = f(t_n + h / 2, y_n + k_2 ⋅ h / 2); 
+        k_3 = f(t_n + h, y_n + k_3 ⋅ h)
+
+        Notation: https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods
+
+        Returns:
+            The updated vorticty of this time step.
+        """
         k1 = self._transport_vortex(self.omega)
         # print(f'k1 - OMEGA: {np.max(np.abs(self.omega))}')
         omega_k2 = self.omega + 0.5 * self.dt * k1
@@ -131,18 +236,28 @@ class VortexSimulation:
 
         return omega
 
-    def _step(self) -> np.ndarray:
-        self.psi = self.solver.solve(self.omega)
-        # print(f'PSI: {np.abs(np.max(self.psi))}')
-        self._update_velocities()
+    def _plot(self, frame: int, steps_per_frame: int, simulation_time: float):
+        """
+        This method updates the animation. It updates the animation frame every few time steps.
 
-        self._compute_vortex_boundaries()
+        Args:
+            frame: the current frame of simulation
+            steps_per_frame: steps taken per frame update
+            simulation_time: total simulation time in seconds
+        """
+        for _ in range(steps_per_frame):
+            self.omega = self._step()
 
-        omega = self._runge_kutta()
-        
-        return omega
+        current_time = (frame + 1) * steps_per_frame * self.dt
 
-    def init_plot(self, ax, simulation_time: float) -> None:
+        self.sim_title.set_text(
+            f"Total Simulation Time: {round(simulation_time, 2)}s | t = {current_time:.2f}s"
+        )
+
+        self.mesh.set_array(self.omega.ravel())
+        return self.mesh, self.sim_title
+
+    def _init_plot(self, ax, simulation_time: float) -> None:
         r = np.exp(self.grid_xi)
         self.x_grid = r * np.cos(self.grid_theta)
         self.y_grid = r * np.sin(self.grid_theta)
@@ -169,38 +284,3 @@ class VortexSimulation:
         self.sim_title = ax.set_title(
             f"Total Simulation Time: {round(simulation_time, 2)}s | t = 0.00s"
         )
-
-    def _plot(self, frame: int, steps_per_frame: int, simulation_time: float):
-        for _ in range(steps_per_frame):
-            self.omega = self._step()
-
-        current_time = (frame + 1) * steps_per_frame * self.dt
-
-        self.sim_title.set_text(
-            f"Total Simulation Time: {round(simulation_time, 2)}s | t = {current_time:.2f}s"
-        )
-
-        self.mesh.set_array(self.omega.ravel())
-        return self.mesh, self.sim_title
-
-    def run_simulation(self, simulation_time: float, steps_per_frame: int, to_plot=False) -> None:
-        n_steps = int(np.ceil(simulation_time // self.dt))
-
-        if to_plot:
-            fig, ax = plt.subplots(figsize=(8, 6))
-            self.init_plot(ax, simulation_time)
-            anim = animation.FuncAnimation(
-                fig,
-                self._plot,
-                fargs=(steps_per_frame, simulation_time),
-                frames=n_steps // steps_per_frame + 1,
-                interval=20,  # Delay between frames in ms (~50 FPS target)
-                blit=False,  # Redraws only modified pixels for speed
-                repeat=False
-            )
-            self._anim = anim
-            plt.show()
-        else:
-            for _ in range(n_steps):
-                self.omega = self._step()
-                # print(f'Max: {np.max(self.psi)}, Min: {np.min(self.psi)}')
