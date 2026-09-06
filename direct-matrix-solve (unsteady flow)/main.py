@@ -10,14 +10,14 @@ Informationen zur Simulation und den Algorithmen sind in der 'readme.md' zu find
 Informationen zu den verwendenten externen Bibliotheken sind in der 'requirements.txt' zu finden.
 """
 def main():
-    Re = 1000 # Reynolds number, working point: 100 - 150
+    Re = 100 # Reynolds number, working point: 100 - 150
 
-    n = 160 # grid points in ξ-direction
-    m = 160 # grid points in θ-direction
+    n = 256 # grid points in ξ-direction
+    m = 256 # grid points in θ-direction
 
-    simulation_time = 60 # total simulation time in seconds
+    simulation_time = 180 # total simulation time in seconds
 
-    simulation = VortexSimulation(Re, n, m, dt=0.01)
+    simulation = VortexSimulation(Re, n, m, dt=0.015) # maximum dt = 0.0385955515316841
     simulation.run_simulation(simulation_time, steps_per_frame=5, to_plot=True)
 
 
