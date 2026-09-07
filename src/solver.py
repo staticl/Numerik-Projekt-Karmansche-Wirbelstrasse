@@ -2,8 +2,6 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-import matplotlib.pyplot as plt
-
 
 class PoissonSolver:
     def __init__(self, h: float, exp_neg_2_xi: np.ndarray, grid_xi: np.ndarray, grid_theta: np.ndarray) -> None:
@@ -35,7 +33,7 @@ class PoissonSolver:
         conditions and the FDE.
 
         The Finite-Difference-Equation in this case is:
-        
+
         4 ⋅ ψ_i,j - ψ_i+1,j - ψ_i-1,j - ψ_i,j+1 - ψ_i,j-1 = h² ⋅ exp(2⋅ξ_i) ⋅ ω_i,j
 
         Returns:
@@ -68,7 +66,7 @@ class PoissonSolver:
         A[k_T, :] = 0.0
         A[k_T, k_T] = 1.0
         A[k_T, k_te] = -1.0
-        
+
         self.k_L, self.k_R, self.k_B, self.k_T = k_L, k_R, k_B, k_T
 
         return spla.splu(A.tocsc())
@@ -92,7 +90,5 @@ class PoissonSolver:
         b[self.k_T] = 0.0
 
         psi = self.lu.solve(b)
-
-        # print(f'MAX-SPI: {np.max(np.abs(psi))}')
 
         return psi.reshape(self.m, self.n).T

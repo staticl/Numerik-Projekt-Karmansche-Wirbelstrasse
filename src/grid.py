@@ -2,7 +2,7 @@ import numpy as np
 
 
 class LogPolarGrid:
-    
+
     def __init__(self, n: int, m: int) -> None:
         """
         This class is used to build the math grid in logarithmic polar coordinates.
@@ -28,9 +28,9 @@ class LogPolarGrid:
         """
         xi_max = (self.n - 1) * self.h
         xi = np.linspace(0, xi_max, self.n)
-        print(len(xi))
+
         theta = np.arange(self.m) * self.h
-        print(len(theta))
+
         grid_xi, grid_theta = np.meshgrid(xi, theta, indexing='ij', sparse=False)
 
         self.grid_xi = grid_xi

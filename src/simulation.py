@@ -1,5 +1,5 @@
-from solver import PoissonSolver
-from grid import LogPolarGrid
+from .solver import PoissonSolver
+from .grid import LogPolarGrid
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -43,7 +43,7 @@ class VortexSimulation:
 
         self._compute_vortex_boundaries()
 
-    def run_simulation(self, simulation_time: float, steps_per_frame: int, to_plot=False) -> None:
+    def run_simulation(self, simulation_time: float, steps_per_frame: int, to_plot=False) -> None | tuple[list[float], list[float]]:
         """
         This method is the callable method used to run the simulation. 
         When to_plot is True it starts the live simulation using matplotlib.animation.animation.FuncAnimation otherwise it calls
@@ -53,6 +53,9 @@ class VortexSimulation:
             simulation_time: total simulation time in seconds
             steps_per_frame: number of steps taken per frame update
             to_plot: decides if the animation is shown or not
+
+        Returns:
+            A list of the stream function and voriticty near the cylinder to calculate the Strouhal-Number. Used with the 'notebooks/strouhal_number.ipynb' notebook
         """
         n_steps = int(np.ceil(simulation_time // self.dt))
 
@@ -64,16 +67,29 @@ class VortexSimulation:
                 self._plot,
                 fargs=(steps_per_frame, simulation_time),
                 frames=n_steps // steps_per_frame + 1,
-                interval=20,  # Delay between frames in ms (~50 FPS target)
-                blit=False,  # Redraws only modified pixels for speed
+                interval=20,
+                blit=False,
                 repeat=False
             )
             self._anim = anim
             plt.show()
         else:
+            # 'psi_for_st' and 'omega_for_st' are used to calculate the Strouhal number, both values get taken at θ = 0 and ξ = ln(r = 3)
+            psi_for_st = []
+            omega_for_st = []
+            xi_st = int(np.log(3) / self.h)
+
+            max_dt = 0
             for _ in range(n_steps):
                 self.omega = self._step()
-                # print(f'Max: {np.max(self.psi)}, Min: {np.min(self.psi)}')
+
+                this_dt = self.h / max(np.max(self.u_xi), np.max(self.u_theta))
+                max_dt = this_dt if this_dt > max_dt else max_dt
+
+                psi_for_st.append(self.psi[xi_st, 0])
+                omega_for_st.append(self.omega[xi_st, 0])
+            print(f"The maximum dt according to the CFL criterium for this grid size: {max_dt:.8f}")
+            return omega_for_st, psi_for_st
 
     def _step(self) -> np.ndarray:
         """
@@ -85,13 +101,13 @@ class VortexSimulation:
             The new calculated omega of this time step.
         """
         self.psi = self.solver.solve(self.omega)
-        # print(f'PSI: {np.abs(np.max(self.psi))}')
+
         self._update_velocities()
 
         self._compute_vortex_boundaries()
 
         omega = self._runge_kutta()
-        
+
         return omega
 
     def _update_velocities(self) -> None:
@@ -106,11 +122,8 @@ class VortexSimulation:
         self.u_xi *= self.exp_neg_xi / (2 * self.h)
 
         self.u_theta[1:-1, :] = self.psi[2:, :] - self.psi[:-2, :]
-        # self.u_theta[-1, :] = self.psi[0, :] - self.psi[-2, :]
-        self.u_theta *= -self.exp_neg_xi / (2 * self.h)
 
-        # print(f'Max-Xi: {np.max(self.u_xi)}, Min-Xi: {np.min(self.u_xi)}')
-        # print(f'Max-Theta: {np.max(self.u_theta)}, Min-Theta: {np.min(self.u_theta)}')
+        self.u_theta *= -self.exp_neg_xi / (2 * self.h)
 
     def _compute_vortex_boundaries(self, omega: np.ndarray | None = None) -> None:
         """
@@ -140,7 +153,7 @@ class VortexSimulation:
 
         Args:
             omega: vorticity of shaüe n x m
-        
+
         Returns:
             The time derivative of the vorticity calculated by the vorticity equation.
         """
@@ -178,28 +191,8 @@ class VortexSimulation:
         domega_dtheta = np.where(self.u_theta > 0, backward_theta, forward_theta)
         domega_dxi[1:-1, :] = np.where(self.u_xi[1:-1, :] > 0, backward_xi, forward_xi)
 
-        # print(f'd2omega_dxi2: {np.max(np.abs(d2omega_dxi2))}')
-        # print(f'd2omega_dtheta2: {np.max(np.abs(d2omega_dtheta2))}')
-        # print(f'domega_dxi: {np.max(np.abs(domega_dxi))}')
-        # print(f'domega_dtheta: {np.max(np.abs(domega_dtheta))}')
-
-        # print(f'omega: {omega.shape}')
-
-        # print(f'd2omega_dxi2: {d2omega_dxi2.shape}')
-        # print(f'd2omega_dtheta2: {d2omega_dtheta2.shape}')
-        # print(f'domega_dxi: {domega_dxi.shape}')
-        # print(f'domega_dtheta: {domega_dtheta.shape}')
-
-        # print("exp_neg_xi shape:", self.exp_neg_xi.shape)
-
         diffusion = (1.0 / self.Re) * self.exp_neg_2_xi * (d2omega_dtheta2 + d2omega_dxi2)
         convection = self.exp_neg_xi * (self.u_xi * domega_dxi + self.u_theta * domega_dtheta)
-
-        # print(f'DIFFUSION: {np.max(np.abs(diffusion))}')
-        # print(f'CONVEKTION: {np.max(np.abs(convection))}')
-
-        # print(f'diffusion: {diffusion.shape}')
-        # print(f'convection: {convection.shape}')
 
         omega_dot = diffusion - convection
 
@@ -222,21 +215,21 @@ class VortexSimulation:
             The updated vorticty of this time step.
         """
         k1 = self._transport_vortex(self.omega)
-        # print(f'k1 - OMEGA: {np.max(np.abs(self.omega))}')
+
         omega_k2 = self.omega + 0.5 * self.dt * k1
         k2 = self._transport_vortex(omega_k2)
-        # print(f'k2 - OMEGA: {np.max(np.abs(omega_k2))}')
+
         omega_k3 = self.omega + 0.5 * self.dt * k2
         k3 = self._transport_vortex(omega_k3)
-        # print(f'k3 - OMEGA: {np.max(np.abs(omega_k3))}')
+
         omega_k4 = self.omega + self.dt * k3
         k4 = self._transport_vortex(omega_k4)
-        # print(f'k4 - OMEGA: {np.max(np.abs(omega_k4))}')
+
         omega = self.omega + 1/6 * self.dt * (k1 + 2 * k2 + 2 * k3 + k4)
 
         return omega
 
-    def _plot(self, frame: int, steps_per_frame: int, simulation_time: float):
+    def _plot(self, frame: int, steps_per_frame: int, simulation_time: float) -> None:
         """
         This method updates the animation. It updates the animation frame every few time steps.
 
@@ -258,12 +251,16 @@ class VortexSimulation:
         return self.mesh, self.sim_title
 
     def _init_plot(self, ax, simulation_time: float) -> None:
+        """
+        Initializes the plot for the simulation.
+        Args:
+            ax: The axis of the figure to plot on.
+            simulation_time: The total simulation time in seconds.
+        """
         r = np.exp(self.grid_xi)
         self.x_grid = r * np.cos(self.grid_theta)
         self.y_grid = r * np.sin(self.grid_theta)
 
-        # Draw the initial mesh plot and save it to an instance variable
-        # Fixing vmin and vmax is crucial for performance!
         self.mesh = ax.pcolormesh(
             self.x_grid,
             self.y_grid,
