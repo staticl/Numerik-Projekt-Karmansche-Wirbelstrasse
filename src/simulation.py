@@ -37,6 +37,7 @@ class VortexSimulation:
         self.psi[0, :] = 0.0
         self.omega = np.zeros((n, m))
         self.omega += 0.05 * np.cos(self.grid_theta) * np.exp(-2 * self.grid_xi)
+        self.omega += 0.05 * np.sin(self.grid_theta) * np.exp(-2 * self.grid_xi)
 
         self.u_theta = np.zeros((n, m))
         self.u_xi = np.zeros((n, m))
@@ -115,22 +116,17 @@ class VortexSimulation:
         This methods updates the vortex velocities u_ξ = exp(-ξ) ⋅ ∂_θ ⋅ ψ and u_θ = exp(-ξ) ⋅ ∂_ξ ⋅ ψ by using a first-order 
         central derivative. 
         """
-        self.u_xi[:, 1:-1] = self.psi[:, 2:] - self.psi[:, :-2]
-        self.u_xi[:, 0] = self.psi[:, 1] - self.psi[:, -1]
-        self.u_xi[:, -1] = self.psi[:, 0] - self.psi[:, -2]
-
-        self.u_xi *= self.exp_neg_xi / (2 * self.h)
-
-        self.u_theta[1:-1, :] = self.psi[2:, :] - self.psi[:-2, :]
-
-        self.u_theta *= -self.exp_neg_xi / (2 * self.h)
+        self.u_xi[:, 1:-1] = ((self.psi[:, 2:] - self.psi[:, :-2])
+                              * self.exp_neg_xi[:, 1:-1] / (2 * self.h))
+        self.u_theta[1:-1, :] = (-(self.psi[2:, :] - self.psi[:-2, :])
+                                 * self.exp_neg_xi[1:-1, :] / (2 * self.h))
 
     def _compute_vortex_boundaries(self, omega: np.ndarray | None = None) -> None:
         """
         Sets the boundary conditions for the stream function, voricity and vortex speed.
 
         stream function ψ: ψ_(n - 1),j = exp(ξ_(n - 1)) ⋅ sin(θ_j), ψ_0,j = 0.0
-        vorticity ω: ω_(n - 1),j = 0.0, ω_0,j = 1 / (2 ⋅ h²) ⋅ (ψ_2,j - ψ_1,j)
+        vorticity ω: ω_(n - 1),j = 0.0, ω_0,j = 1 / (2 ⋅ h²) ⋅ (ψ_2,j - 8 ⋅ ψ_1,j)
         tangential vortex speed u_ξ: u_ξ_0,j = 0.0
 
         Args:
@@ -141,6 +137,8 @@ class VortexSimulation:
 
         self.omega[-1, :] = 0.0
         self.omega[0, :] = 1 / (2 * self.h**2) * (self.psi[2, :] - 8 * self.psi[1, :])
+        self.omega[:, 0] = self.omega[:, -2]
+        self.omega[:, -1] = self.omega[:, 1]
 
         self.u_theta[0, :] = 0.0
 
@@ -152,49 +150,32 @@ class VortexSimulation:
         in ξ.
 
         Args:
-            omega: vorticity of shaüe n x m
+            omega: vorticity of shape n x m
 
         Returns:
             The time derivative of the vorticity calculated by the vorticity equation.
         """
-        s = self.psi.shape
-        d2omega_dtheta2 = np.zeros(s)
-        d2omega_dtheta2[:, 1:-1] = omega[:, 2:] - 2 * omega[:, 1:-1] + omega[:, :-2]
-        d2omega_dtheta2[:, 0] = omega[:, 1] - 2 * omega[:, 0] + omega[:, -1]
-        d2omega_dtheta2[:, -1] = omega[:, 0] - 2 * omega[:, -1] + omega[:, -2]
-        d2omega_dtheta2 /= self.h**2
+        omega = omega.copy()
+        omega[0, :] = 1 / (2 * self.h**2) * (self.psi[2, :] - 8 * self.psi[1, :])
+        omega[-1, :] = 0.0
+        omega[:, 0] = omega[:, -2]
+        omega[:, -1] = omega[:, 1]
 
-        d2omega_dxi2 = np.zeros(s)
-        d2omega_dxi2[1:-1, :] = (omega[2:, :] - 2 * omega[1:-1, :] + omega[:-2, :]) / (self.h**2)
-        d2omega_dxi2[1, :] = omega[0, :]
+        e2 = self.exp_neg_2_xi[1:-1, 1:-1]
 
-        domega_dtheta = np.zeros(s)
-        domega_dxi = np.zeros(s)
+        diffusion = (2 * e2 / (self.Re * self.h**2)) * (
+            omega[2:, 1:-1] + omega[:-2, 1:-1]
+            + omega[1:-1, 2:] + omega[1:-1, :-2] - 4 * omega[1:-1, 1:-1]
+        )
+        convection = (e2 / (4 * self.h**2)) * (
+            (self.psi[2:, 1:-1] - self.psi[:-2, 1:-1])
+            * (omega[1:-1, 2:] - omega[1:-1, :-2])
+            - (self.psi[1:-1, 2:] - self.psi[1:-1, :-2])
+            * (omega[2:, 1:-1] - omega[:-2, 1:-1])
+        )
 
-        forward_theta = np.zeros(s)
-        forward_theta[:, 1:-2] = -1 * (2 * omega[:, :-3] + 3 * omega[:, 1:-2] - 6 * omega[:, 2:-1] + omega[:, 3:])
-        forward_theta[:, 0] = -1 * (2 * omega[:, -1] + 3 * omega[:, 0] - 6 * omega[:, 1] + omega[:, 2])
-        forward_theta[:, -2] = -1 * (2 * omega[:, -3] + 3 * omega[:, -2] - 6 * omega[:, -1] + omega[:, 0])
-        forward_theta[:, -1] = -1 * (2 * omega[:, -2] + 3 * omega[:, -1] - 6 * omega[:, 0] + omega[:, 1])
-        forward_theta /= 6 * self.h
-
-        backward_theta = np.zeros(s)
-        backward_theta[:, 2:-1] = 2 * omega[:, 3:] + 3 * omega[:, 2:-1] - 6 * omega[:, 1:-2] + omega[:, :-3]
-        backward_theta[:, 0] = 2 * omega[:, 1] + 3 * omega[:, 0] - 6 * omega[:, -1] + omega[:, -2]
-        backward_theta[:, 1] = 2 * omega[:, 2] + 3 * omega[:, 1] - 6 * omega[:, 0] + omega[:, -1]
-        backward_theta[:, -1] = 2 * omega[:, 0] + 3 * omega[:, -1] - 6 * omega[:, -2] + omega[:, -3]
-        backward_theta /= 6 * self.h
-
-        forward_xi = (omega[2:, :] - omega[1:-1, :]) / self.h
-        backward_xi = (omega[1:-1, :] - omega[:-2, :]) / self.h
-
-        domega_dtheta = np.where(self.u_theta > 0, backward_theta, forward_theta)
-        domega_dxi[1:-1, :] = np.where(self.u_xi[1:-1, :] > 0, backward_xi, forward_xi)
-
-        diffusion = (1.0 / self.Re) * self.exp_neg_2_xi * (d2omega_dtheta2 + d2omega_dxi2)
-        convection = self.exp_neg_xi * (self.u_xi * domega_dxi + self.u_theta * domega_dtheta)
-
-        omega_dot = diffusion - convection
+        omega_dot = np.zeros(omega.shape)
+        omega_dot[1:-1, 1:-1] = diffusion + convection
 
         return omega_dot
 

@@ -16,7 +16,7 @@ class LogPolarGrid:
         """
         self.n = n
         self.m = m
-        self.h = 2 * np.pi / self.m
+        self.h = 2 * np.pi / (self.m - 2)
 
     def grid(self) -> tuple[np.ndarray, np.ndarray]:
         """
@@ -29,7 +29,7 @@ class LogPolarGrid:
         xi_max = (self.n - 1) * self.h
         xi = np.linspace(0, xi_max, self.n)
 
-        theta = np.arange(self.m) * self.h
+        theta = (np.arange(self.m) - 1) * self.h
 
         grid_xi, grid_theta = np.meshgrid(xi, theta, indexing='ij', sparse=False)
 
