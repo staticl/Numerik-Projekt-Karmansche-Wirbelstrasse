@@ -1,6 +1,6 @@
 """
 Simulation zur Kármanschen Wirbelstraße - Projekt Numerik
-von Louis B., Linus D., Gustav H und Maximilian M.
+von Louis B., Linus D., Gustav H. und Maximilian M.
 
 Informationen zur Simulation, den Algorithmen und den verwendenten externen Bibliotheken sind in der 'README.md' zu finden.
 """

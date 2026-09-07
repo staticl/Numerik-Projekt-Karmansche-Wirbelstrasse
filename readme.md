@@ -51,4 +51,4 @@ Im Notebook `notebooks/strouhal_number.ipynb` kann die Simulation ebenfalls gest
 - **scipy**: Sparse Matrizen und Lösen von LGS
 
 ## Autoren
-Louis Bösenberg, Linus Demuth, Gustav-Theodor Henschel, Maximillian Meran
+Louis B. Linus D., Gustav H., Maximilian M.
