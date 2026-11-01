@@ -9,10 +9,10 @@ The implementation is done entirely in **Python**. To capture the physical condi
 
 *Vorticity field of the simulated Kármán vortex street at t = 180.*
 
-## 2. Hyperparameters and Simulation Parameters
+## 2. Simulation Parameters
 
 * **Reynolds number ($Re$):** `100` to `150` (characterizes the flow regime)
-* **Grid resolution ($N_\xi \times N_\theta$):** `160x160`, `256x256` (number of grid points in the radial and tangential directions)
+* **Grid resolution ($N_\xi \times N_\theta$):** `160x160`, `256x256` (number of grid points in the radial and tangential directions [$N_\xi$ = n, $N_\theta$ = m])
 * **Time step ($\Delta t$):** `Δt = 0.033` for `m = n = 160`, `Δt = 0.012` for `m = n = 256` (discretization of the time axis)
 * **Simulation duration ($T_{\text{max}}$):** `180` (dimensionless time units)
 
@@ -51,7 +51,7 @@ $$\omega_0 = 0.05 \cdot (\cos\theta + \sin\theta) \cdot e^{-2\xi}.$$
 This breaks the symmetry about the x-axis and considerably accelerates the onset of the instability. For `Re = 100` and `n = m = 160`, the oscillation starts to grow at around $t \approx 40$ and is fully developed from about $t \approx 100$. Without the perturbation, the vortex street only forms at $t \approx 1100$, which would not be practical for the simulation duration chosen here.
 
 ## 4. Validation
-For validation, the Strouhal number $St = f \cdot D / U$ is computed. To this end, the vorticity at a fixed point in the wake ($r = 3$, $\theta = 0$) is recorded over time, and the shedding frequency $f$ is determined from the maximum of the amplitude spectrum (FFT) of the second half of the time signal. Because the equations are nondimensionalized with the cylinder radius and the free-stream velocity, $St = 2f$.
+For validation, the Strouhal number $St = f \cdot D / U$ is computed. To this end, the stream function at a fixed point in the wake ($r = 3$, $\theta = 0$) is recorded over time, and the shedding frequency $f$ is determined from the maximum of the amplitude spectrum (FFT) of the second half of the time signal. Because the equations are nondimensionalized with the cylinder radius and the free-stream velocity, $St = 2f$.
 
 The empirical correlation by Roshko serves as the reference:
 
@@ -67,7 +67,7 @@ The evaluation is carried out in the notebook `notebooks/strouhal_number.ipynb`.
 | 180 | Stream function $\psi$ | 100 | 196 × 196 | 0.1556 | 0.1590 | 2.16 % |
 | 180 | Stream function $\psi$ | 100 | 256 × 256 | 0.1556 | 0.1590 | 2.16 % |
 
-## Project Structure
+## 5. Project Structure
 ```text
 Numerik Projekt Karmansche Wirbelstrasse/
 ├── docs/
@@ -83,7 +83,7 @@ Numerik Projekt Karmansche Wirbelstrasse/
 └── main.py
 ```
 
-## Usage
+## 6. Usage
 The program can be run via `main.py`. The parameters can be adjusted there and the simulation started.
 
 The simulation can also be started in the notebook `notebooks/strouhal_number.ipynb`, where the Strouhal number can be computed to validate the simulation.
@@ -93,8 +93,8 @@ The simulation can also be started in the notebook `notebooks/strouhal_number.ip
 - **matplotlib**: visualization
 - **scipy**: sparse matrices and solving linear systems
 
-## Background
+## 7. Background
 The numerical formulation follows the lecture notes *Flow Around a Cylinder* by Jeffrey R. Chasnov (HKUST), in particular the chapters on logarithmic polar coordinates (Lecture 8) and on unsteady flow (Lectures 16–21).
 
-## Authors
+## 8. Authors
 Louis B., Linus D., Gustav H., Maximilian M.
